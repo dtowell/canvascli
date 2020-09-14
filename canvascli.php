@@ -121,6 +121,36 @@ class Request {
         return $json;
     }
 
+    public function put(string $url,array $body) {
+        global $config;
+
+        if (!preg_match("|^https://|",$url))
+            $url = 'https://'.$config['domain'].$url;
+
+        $this->response_headers = [];
+        $encoded = json_encode($body);
+        curl_setopt($this->curl,CURLOPT_URL,$url);
+        //curl_setopt($this->curl,CURLOPT_PUT,1);
+        curl_setopt($this->curl,CURLOPT_CUSTOMREQUEST, "PUT");
+        curl_setopt($this->curl,CURLOPT_POSTFIELDS,$encoded);
+        curl_setopt($this->curl,CURLOPT_HTTPHEADER,[$this->auth_header,'Content-Type: application/json','Content-Length: '.strlen($encoded)]);
+        $result = curl_exec($this->curl);
+        if ($result === false)
+            return null;
+        $result_code = curl_getinfo($this->curl,CURLINFO_HTTP_CODE);
+        if ($result_code!=200 && $result_code!=201) {
+            echo $result_code." $result\n";
+            echo json_encode($body,JSON_PRETTY_PRINT)."\n";
+            return null;
+        }
+        $json = json_decode($result);
+        if ($json === false) {
+            echo $result."\n";
+            return null;
+        }
+        return $json;
+    }
+
     public function post_quiz(string $course_id,object $quiz):int {
         $body = filter($quiz,'create_quiz_attributes');
         $quiz_id = $this->acquire_quiz_id($course_id,$body);
@@ -155,7 +185,7 @@ class Request {
     private $quiz_cache = null;
     public function acquire_quiz_id(string $course_id,array $body):int {
         $url = "/api/v1/courses/$course_id/quizzes";
-        if ($this->quiz_cache === null ||  $this->module_item_cache->get_url()!=$url)
+        if ($this->quiz_cache === null ||  $this->quiz_cache->get_url()!=$url)
             $this->quiz_cache = new Cache($this,$url,'title');
 
         return $this->quiz_cache->acquire_id($body,'quiz');
@@ -201,6 +231,7 @@ if (count($argv) < 2) {
     echo "    create modules <COURSE-ID> <JSON-FILE>\n";
     echo "    list|get pages <COURSE-ID>\n";
     echo "    create pages <COURSE-ID> <JSON-FILE>\n";
+    echo "    update pages <COURSE-ID> <JSON-FILE>\n";
     // list|get|create files|folders ???
     echo "    list|get quizzes <COURSE-ID>\n";
     echo "    create quizzes <COURSE-ID> <JSON-FILE>\n";
@@ -374,6 +405,18 @@ else if ($argv[2] == 'pages') {
         foreach ($pages as $p) {
             $body = filter($p,'create_page_attributes');
             $json = $request->post("/api/v1/courses/$argv[3]/pages",['wiki_page'=>$body]);
+        }
+    }
+    else if ($argv[1] == 'update') {
+        if (empty($argv[4]) || !is_file($argv[4])) {
+            echo "JSON-FILE is required\n";
+            exit;
+        }
+        $pages = file_get_contents($argv[4]);
+        $pages = json_decode($pages);
+        foreach ($pages as $p) {
+            $body = filter($p,'create_page_attributes');
+            $json = $request->put("/api/v1/courses/$argv[3]/pages/$body[url]",['wiki_page'=>$body]);
         }
     }
     else 

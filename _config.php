@@ -1,9 +1,9 @@
 <?php
 $config = [
     // YOU MUST EDIT THESE
-    'domain'    => 'canvas.instructure.com',
-    'token'     => '...',
-    
+    'domain'    => 'lipscomb.instructure.com',
+    'token'     => '12438~D7yrDvwFoBx6WwQb2EgMeWH56mfxTQwggmXJj8ziVaH0Xoa9gXnU7EpNs0SPriek',
+
     // OPTIONALLY EDIT THESE
     'create_assignment_attributes' => 
                     [
