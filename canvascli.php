@@ -73,7 +73,7 @@ class Request {
         if ($result === false) 
             return null;
         $result_code = curl_getinfo($this->curl,CURLINFO_HTTP_CODE);
-        if ($result_code == 401) // closed courses are "unauthorized" !?!?!?
+        if ($result_code > 400) // closed courses are "unauthorized" !?!?!?
             return [];
         $json = json_decode($result);
         if ($json === false)
@@ -235,6 +235,7 @@ if (count($argv) < 2) {
     // list|get|create files|folders ???
     echo "    list|get quizzes <COURSE-ID>\n";
     echo "    create quizzes <COURSE-ID> <JSON-FILE>\n";
+    echo "    modify quizzes <COURSE-ID> <JSON-FILE> (applies JSON to all quizzes)\n";
     exit;
 }
 
@@ -449,6 +450,17 @@ else if ($argv[2] == 'quizzes') {
         $quizzes = json_decode($quizzes);
         foreach ($quizzes as $q)
             $request->post_quiz($argv[3],$q);
+    }
+    else if ($argv[1] == 'modify') {
+        if (empty($argv[4]) || !is_file($argv[4])) {
+            echo "JSON-FILE is required\n";
+            exit;
+        }
+        $update = file_get_contents($argv[4]);
+        $update = json_decode($update);
+        $quizzes = $request->unpage("/api/v1/courses/$argv[3]/quizzes");
+        foreach ($quizzes as $q)
+            $request->put("/api/v1/courses/$argv[3]/quizzes/$q->id",['quiz'=>$update]);
     }
     else 
         echo "unknown verb $argv[1]\n";
