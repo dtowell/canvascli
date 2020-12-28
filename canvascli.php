@@ -59,7 +59,7 @@ class Request {
         });
     }
 
-    public function get(string $url) {
+    public function get(string $url,bool $raw=false) {
         global $config;
 
         if (!preg_match("|^https://|",$url))
@@ -69,12 +69,15 @@ class Request {
         curl_setopt($this->curl,CURLOPT_URL,$url);
         curl_setopt($this->curl,CURLOPT_HTTPGET,1);
         curl_setopt($this->curl,CURLOPT_HTTPHEADER,[$this->auth_header]);
+        curl_setopt($this->curl,CURLOPT_FOLLOWLOCATION,$raw);
         $result = curl_exec($this->curl);
         if ($result === false) 
             return null;
         $result_code = curl_getinfo($this->curl,CURLINFO_HTTP_CODE);
         if ($result_code > 400) // closed courses are "unauthorized" !?!?!?
-            return [];
+            return $raw ? null : [];
+        if ($raw)
+            return $result;
         $json = json_decode($result);
         if ($json === false)
             return null;
@@ -232,7 +235,8 @@ if (count($argv) < 2) {
     echo "    list|get pages <COURSE-ID>\n";
     echo "    create pages <COURSE-ID> <JSON-FILE>\n";
     echo "    update pages <COURSE-ID> <JSON-FILE>\n";
-    // list|get|create files|folders ???
+    echo "    list|get files <COURSE-ID>\n";
+    echo "    create files <COURSE-ID> <JSON-FILE>\n";
     echo "    list|get quizzes <COURSE-ID>\n";
     echo "    create quizzes <COURSE-ID> <JSON-FILE>\n";
     echo "    modify quizzes <COURSE-ID> <JSON-FILE> (applies JSON to all quizzes)\n";
@@ -419,6 +423,44 @@ else if ($argv[2] == 'pages') {
             $body = filter($p,'create_page_attributes');
             $json = $request->put("/api/v1/courses/$argv[3]/pages/$body[url]",['wiki_page'=>$body]);
         }
+    }
+    else 
+        echo "unknown verb $argv[1]\n";
+}
+else if ($argv[2] == 'files') {
+    if (empty($argv[3]) || !ctype_digit($argv[3])) {
+        echo "COURSE-ID is required\n";
+        exit;
+    }
+    if ($argv[1] == 'get') {
+        $pages = $request->unpage("/api/v1/courses/$argv[3]/files");
+        foreach ($pages as $p) {
+            $public_url = $request->get("/api/v1/files/$p->id/public_url")->public_url;
+            $p->base64_contents = base64_encode($request->get($public_url,true));
+        }
+        echo json_encode($pages,JSON_PRETTY_PRINT)."\n";
+    }
+    else if ($argv[1] == 'list') {
+        $pages = $request->unpage("/api/v1/courses/$argv[3]/files");
+        usort($pages,fn($a,$b)=>$a->title <=> $b->title);
+        foreach ($pages as $a) {
+            echo $a->id.": $a->filename($a->display_name,$a->size)\n";
+        }
+    }
+    else if ($argv[1] == 'create') {
+        echo "not supported yet!\n";
+        /*
+        if (empty($argv[4]) || !is_file($argv[4])) {
+            echo "JSON-FILE is required\n";
+            exit;
+        }
+        $pages = file_get_contents($argv[4]);
+        $pages = json_decode($pages);
+        foreach ($pages as $p) {
+            $body = filter($p,'create_file_attributes');
+            $json = $request->post("/api/v1/courses/$argv[3]/files",['wiki_page'=>$body]);
+        }
+        */
     }
     else 
         echo "unknown verb $argv[1]\n";
