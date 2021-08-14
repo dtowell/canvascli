@@ -227,6 +227,7 @@ if (count($argv) < 2) {
     echo "usage: php canvascli.php ...\n";
     echo "    list|get courses\n";
     //echo "    list|get terms\n";
+    echo "    list|get|display users <COURSE-ID>\n";
     echo "    list|get assignments <COURSE-ID>\n";
     echo "    create assignments <COURSE-ID> <JSON-FILE>\n";
     echo "    list|get modules <COURSE-ID>\n";
@@ -270,6 +271,50 @@ else if ($argv[2] == 'terms') {
         foreach ($terms as $t) {
             echo $t->id.": ".$t->name."\n";
         }
+    }
+    else 
+        echo "unknown verb $argv[1]\n";
+}
+else if ($argv[2] == 'users') {
+    if (empty($argv[3]) || !ctype_digit($argv[3])) {
+        echo "COURSE-ID is required\n";
+        exit;
+    }
+    if ($argv[1] == 'get') {
+        $users = $request->unpage("/api/v1/courses/$argv[3]/users?enrollment_type=student&include[]=avatar_url");
+        echo json_encode($users,JSON_PRETTY_PRINT)."\n";
+    }
+    else if ($argv[1] == 'list') {
+        $users = $request->unpage("/api/v1/courses/$argv[3]/users?enrollment_type=student&include[]=avatar_url");
+        usort($users,fn($a,$b)=>$a->sortable_name <=> $b->sortable_name);
+        foreach ($users as $u) {
+            echo $u->id.": ".$u->name." ($u->sis_user_id) $u->email\n";
+        }
+    }
+    else if ($argv[1] == 'display') {
+        $users = $request->unpage("/api/v1/courses/$argv[3]/users?enrollment_type=student&include[]=avatar_url");
+        usort($users,fn($a,$b)=>$a->sortable_name <=> $b->sortable_name);
+        echo <<<EOD
+            <html><head><style>
+            div.gallery {
+                margin: 5px;
+                border: 1px solid #ccc;
+                float: left;
+            }
+            div.gallery img {
+                width: 256px;
+                height: auto;
+            }
+            div.desc {
+                padding: 10px;
+                text-align: center;
+            }
+            </style></head><body>
+            EOD;
+        foreach ($users as $u) {
+            echo "<div class=gallery><img src=\"$u->avatar_url\"><div class=desc><a href=mailto:$u->email>$u->name</a></div></div>\n";
+        }
+        echo "</body></html>\n";
     }
     else 
         echo "unknown verb $argv[1]\n";
