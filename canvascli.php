@@ -230,6 +230,7 @@ if (count($argv) < 2) {
     echo "    list|get|display users <COURSE-ID>\n";
     echo "    list|get assignments <COURSE-ID>\n";
     echo "    create assignments <COURSE-ID> <JSON-FILE>\n";
+    echo "    score assignments <COURSE-ID> <ASSIGNMENT-ID>\n";
     echo "    list|get modules <COURSE-ID>\n";
     echo "    acquire modules <COURSE-ID> [<MODULE-ID>]\n";
     echo "    create modules <COURSE-ID> <JSON-FILE>\n";
@@ -347,6 +348,50 @@ else if ($argv[2] == 'assignments') {
             $json = $request->post("/api/v1/courses/$argv[3]/assignments",['assignment'=>$body]);
         }
     }
+    else if ($argv[1] == 'score') {
+        if (empty($argv[4]) || !ctype_digit($argv[4])) {
+            echo "ASSIGNMENT-ID is required\n";
+            exit;
+        }
+
+        $users = $request->unpage("/api/v1/courses/$argv[3]/users?enrollment_type=student");
+        $ids = [];
+        foreach ($users as $u)
+            $ids[$u->email] = $u->id;
+
+        $fh = fopen("$argv[4].csv","r");
+        if ($fh === false) {
+            echo "unable to open $argv[4].csv\n";
+            exit;
+        }
+        while (($row = fgetcsv($fh,2000)) !== false) {
+            $feedback = [
+                'comment' => ['text_comment' => $row[2],],
+                'submission' => ['posted_grade' => $row[1],],
+            ];
+            if (isset($ids[$row[0]])) {
+                $student_id = $ids[$row[0]];
+                $request->put("/api/v1/courses/$argv[3]/assignments/$argv[4]/submissions/$student_id",$feedback);
+                echo "$student_id: $row[0] $row[1]\n"; 
+            }
+            else
+                echo "$row[0] not found\n";
+        }
+        fclose($fh);
+    }
+    //else if ($argv[1] == 'grade') {
+    //    $grades = [
+    //        "grade_data" => [
+    //            345668 => [ // assignment_id
+    //                14773 => [ // user_id
+    //                    "posted_grade"=>18,
+    //                    "text_comment"=>"this is feedback"],
+    //            ],
+    //        ]
+    //    ];
+    //    $json = $request->post("/api/v1/courses/$argv[3]/submissions/update_grades",$grades);
+    //    echo json_encode($json,JSON_PRETTY_PRINT);
+    //}
     else 
         echo "unknown verb $argv[1]\n";
 }
