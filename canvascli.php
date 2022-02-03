@@ -154,6 +154,33 @@ class Request {
         return $json;
     }
 
+    public function delete(string $url) {
+        global $config;
+
+        if (!preg_match("|^https://|",$url))
+            $url = 'https://'.$config['domain'].$url;
+
+        $this->response_headers = [];
+        curl_setopt($this->curl,CURLOPT_URL,$url);
+        curl_setopt($this->curl,CURLOPT_CUSTOMREQUEST, "DELETE");
+        curl_setopt($this->curl,CURLOPT_HTTPHEADER,[$this->auth_header]);
+        $result = curl_exec($this->curl);
+        if ($result === false)
+            return null;
+        $result_code = curl_getinfo($this->curl,CURLINFO_HTTP_CODE);
+        if ($result_code!=200 && $result_code!=201) {
+            echo $result_code." $result\n";
+            echo json_encode($body,JSON_PRETTY_PRINT)."\n";
+            return null;
+        }
+        $json = json_decode($result);
+        if ($json === false) {
+            echo $result."\n";
+            return null;
+        }
+        return $json;
+    }
+
     public function post_quiz(string $course_id,object $quiz):int {
         $body = filter($quiz,'create_quiz_attributes');
         $quiz_id = $this->acquire_quiz_id($course_id,$body);
@@ -242,6 +269,7 @@ if (count($argv) < 2) {
     echo "    list|get quizzes <COURSE-ID>\n";
     echo "    create quizzes <COURSE-ID> <JSON-FILE>\n";
     echo "    modify quizzes <COURSE-ID> <JSON-FILE> (applies JSON to all quizzes)\n";
+    echo "    delete discussions <COURSE-ID>\n";
     exit;
 }
 
@@ -319,6 +347,29 @@ else if ($argv[2] == 'users') {
     }
     else 
         echo "unknown verb $argv[1]\n";
+}
+else if ($argv[2] == 'discussions') {
+    if (empty($argv[3]) || !ctype_digit($argv[3])) {
+        echo "COURSE-ID is required\n";
+        exit;
+    }
+    if ($argv[1] == 'get') {
+        $discussions = $request->unpage("/api/v1/courses/$argv[3]/discussion_topics");
+        echo json_encode($discussions,JSON_PRETTY_PRINT)."\n";
+    }
+    else if ($argv[1] == 'list') {
+        $discussions = $request->unpage("/api/v1/courses/$argv[3]/discussion_topics");
+        usort($discussions,fn($a,$b)=>$a->posted_at <=> $b->posted_at);
+        foreach ($discussions as $d) {
+            echo "$d->id: $d->title ($d->discussion_subentry_count)\n";
+        }
+    }
+    else if ($argv[1] == 'delete') {
+        $discussions = $request->unpage("/api/v1/courses/$argv[3]/discussion_topics");
+        foreach ($discussions as $d) {
+            $request->delete("/api/v1/courses/$argv[3]/discussion_topics/$d->id");
+        }
+    }
 }
 else if ($argv[2] == 'assignments') {
     if (empty($argv[3]) || !ctype_digit($argv[3])) {
