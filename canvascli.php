@@ -408,7 +408,7 @@ else if ($argv[2] == 'assignments') {
         $users = $request->unpage("/api/v1/courses/$argv[3]/users?enrollment_type=student");
         $ids = [];
         foreach ($users as $u)
-            $ids[$u->email] = $u->id;
+            $ids[strtolower($u->email)] = $u->id;
 
         $fh = fopen("$argv[4].csv","r");
         if ($fh === false) {
@@ -416,17 +416,18 @@ else if ($argv[2] == 'assignments') {
             exit;
         }
         while (($row = fgetcsv($fh,2000)) !== false) {
+            $email = strtolower($row[0]);
             $feedback = [
                 'comment' => ['text_comment' => $row[2],],
                 'submission' => ['posted_grade' => $row[1],],
             ];
-            if (isset($ids[$row[0]])) {
-                $student_id = $ids[$row[0]];
+            if (isset($ids[$email])) {
+                $student_id = $ids[$email];
                 $request->put("/api/v1/courses/$argv[3]/assignments/$argv[4]/submissions/$student_id",$feedback);
-                echo "$student_id: $row[0] $row[1]\n"; 
+                echo "$student_id: $email $row[1]\n"; 
             }
             else
-                echo "$row[0] not found\n";
+                echo "$email not found\n";
         }
         fclose($fh);
     }
